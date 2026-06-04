@@ -1,4 +1,4 @@
-name: iOS Build & IPA
+name: iOS Build & IPA (Unsigned)
 
 on:
   workflow_dispatch:
@@ -9,27 +9,23 @@ on:
 
 jobs:
   build:
-    runs-on: macos-15   # includes iOS 18.2 SDK
-
+    runs-on: macos-15
     steps:
-      - name: Checkout
+      - name: Checkout with submodules
         uses: actions/checkout@v4
-
-      - name: Select Xcode 16.2
-        run: sudo xcode-select -switch /Applications/Xcode_16.2.app
-
-      - name: Cache SPM
-        uses: actions/cache@v4
         with:
-          path: |
-            ~/Library/Caches/org.swift.swiftpm
-            ~/Library/Developer/Xcode/DerivedData
-          key: spm-${{ hashFiles('**/Package.resolved') }}
+          submodules: recursive
 
-      - name: Resolve packages
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -switch /Applications/Xcode_16.2.app
+          xcodebuild -version
+          ls -la Silo/   # Debug: check source files
+
+      - name: Resolve SPM Packages
         run: xcodebuild -resolvePackageDependencies -project Silo.xcodeproj -scheme Silo
 
-      - name: Archive (unsigned)
+      - name: Archive (Unsigned)
         run: |
           xcodebuild clean archive \
             -project Silo.xcodeproj \
@@ -37,25 +33,36 @@ jobs:
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -archivePath $RUNNER_TEMP/Silo.xcarchive \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            | xcpretty || true
 
-      - name: Export IPA (unsigned)
+      - name: Export Unsigned IPA
         run: |
-          # Create minimal ExportOptions.plist for unsigned IPA
-          cat > ExportOptions.plist << EOF
+          cat > $RUNNER_TEMP/ExportOptions.plist << EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0"><dict>
-            <key>method</key><string>development</string>
-            <key>signingStyle</key><string>manual</string>
-          </dict></plist>
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>development</string>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>compileBitcode</key>
+              <false/>
+          </dict>
+          </plist>
           EOF
+
           xcodebuild -exportArchive \
             -archivePath $RUNNER_TEMP/Silo.xcarchive \
-            -exportOptionsPlist ExportOptions.plist \
-            -exportPath $RUNNER_TEMP/build
+            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
+            -exportPath $RUNNER_TEMP/build \
+            | xcpretty || true
 
       - name: Upload IPA
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Silo-iOS-IPA

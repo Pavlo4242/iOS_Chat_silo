@@ -1,4 +1,4 @@
-name: iOS Build & IPA (Unsigned)
+name: iOS Build & IPA (Diagnostic)
 
 on:
   workflow_dispatch:
@@ -16,17 +16,24 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Debug - List Files
+        run: |
+          ls -la
+          ls -la Silo/ || echo "Silo folder missing!"
+          find . -name "*.swift" | head -10 || echo "No Swift files found"
+
       - name: Select Xcode
         run: |
           sudo xcode-select -switch /Applications/Xcode_16.2.app
           xcodebuild -version
-          ls -la Silo/   # Debug: check source files
+          xcodebuild -showsdks
 
-      - name: Resolve SPM Packages
+      - name: Resolve Packages
         run: xcodebuild -resolvePackageDependencies -project Silo.xcodeproj -scheme Silo
 
-      - name: Archive (Unsigned)
+      - name: Archive (Verbose - NO || true)
         run: |
+          echo "=== Starting Archive ==="
           xcodebuild clean archive \
             -project Silo.xcodeproj \
             -scheme Silo \
@@ -36,35 +43,19 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="" \
-            | xcpretty || true
+            2>&1 | tee archive.log
 
-      - name: Export Unsigned IPA
+      - name: Show Archive Result
+        if: always()
         run: |
-          cat > $RUNNER_TEMP/ExportOptions.plist << EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>method</key>
-              <string>development</string>
-              <key>signingStyle</key>
-              <string>manual</string>
-              <key>compileBitcode</key>
-              <false/>
-          </dict>
-          </plist>
-          EOF
+          echo "=== Archive Log ==="
+          cat archive.log
+          echo "=== Does xcarchive exist? ==="
+          ls -la $RUNNER_TEMP/Silo.xcarchive 2>/dev/null || echo "No xcarchive found"
 
-          xcodebuild -exportArchive \
-            -archivePath $RUNNER_TEMP/Silo.xcarchive \
-            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
-            -exportPath $RUNNER_TEMP/build \
-            | xcpretty || true
-
-      - name: Upload IPA
-        if: success()
+      - name: Upload Logs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Silo-iOS-IPA
-          path: ${{ runner.temp }}/build/*.ipa
-          retention-days: 7
+          name: build-logs
+          path: archive.log

@@ -46,8 +46,17 @@ jobs:
             -scheme Silo \
             -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
             -clonedSourcePackagesDirPath .spm-packages \
+            -derivedDataPath DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty || true
+
+      - name: Upload build artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Silo-iOS-Simulator-App
+          path: DerivedData/Build/Products/Debug-iphonesimulator/Silo.app
+          retention-days: 5
 
       - name: Upload build logs on failure
         if: failure()

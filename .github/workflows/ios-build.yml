@@ -1,4 +1,4 @@
-name: iOS Build
+name: iOS Build & IPA
 
 on:
   workflow_dispatch:
@@ -9,16 +9,15 @@ on:
 
 jobs:
   build:
-    name: Build for iOS Simulator
+    name: Build iOS
     runs-on: macos-15
-
     steps:
       - name: Checkout with submodules
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Select Xcode 16.2
+      - name: Select Xcode
         run: |
           sudo xcode-select -switch /Applications/Xcode_16.2.app
           xcodebuild -version
@@ -30,40 +29,66 @@ jobs:
             ~/Library/Caches/org.swift.swiftpm
             .build
           key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
-          restore-keys: ${{ runner.os }}-spm-
 
-      - name: Resolve package dependencies
+      - name: Resolve Package Dependencies
+        run: xcodebuild -resolvePackageDependencies -project Silo.xcodeproj -scheme Silo
+
+      # === Signing Setup ===
+      - name: Install Certificate and Profile
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: | 
+          # (keep the same certificate installation script as before)
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+          echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
+
+      # === Quick Simulator Check (optional but useful) ===
+      - name: Build for iOS Simulator (Quick Check)
         run: |
-          xcodebuild -resolvePackageDependencies \
+          xcodebuild build \
             -project Silo.xcodeproj \
             -scheme Silo \
-            -clonedSourcePackagesDirPath .spm-packages
-
-      - name: Build for iOS Simulator
-        run: |
-          xcodebuild clean build \
-            -project Silo.xcodeproj \
-            -scheme Silo \
-            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
-            -clonedSourcePackagesDirPath .spm-packages \
-            -derivedDataPath DerivedData \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty || true
 
-      - name: Upload build artifact
+      # === Main Device Archive + IPA ===
+      - name: Archive for iOS Device
+        run: |
+          xcodebuild clean archive \
+            -project Silo.xcodeproj \
+            -scheme Silo \
+            -destination 'generic/platform=iOS' \
+            -archivePath $RUNNER_TEMP/Silo.xcarchive \
+            | xcpretty || true
+
+      - name: Export IPA
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath $RUNNER_TEMP/Silo.xcarchive \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath $RUNNER_TEMP/build \
+            | xcpretty || true
+
+      - name: Upload IPA
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Silo-iOS-Simulator-App
-          path: DerivedData/Build/Products/*-iphonesimulator/Silo.app
-          retention-days: 5
-
-      - name: Upload build logs on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-logs
-          path: |
-            ~/Library/Logs/scan
-            DerivedData/Logs
+          name: Silo-iOS-IPA
+          path: ${{ runner.temp }}/build/*.ipa
           retention-days: 7

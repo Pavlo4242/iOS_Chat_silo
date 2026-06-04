@@ -21,6 +21,7 @@ jobs:
         run: |
           sudo xcode-select -switch /Applications/Xcode_16.2.app
           xcodebuild -version
+          xcodebuild -showsdks   # Debug: show available SDKs
 
       - name: Cache SPM dependencies
         uses: actions/cache@v4
@@ -40,8 +41,7 @@ jobs:
           P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
           BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-        run: | 
-          # (keep the same certificate installation script as before)
+        run: |
           CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
           PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
@@ -57,7 +57,7 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
 
-      # === Quick Simulator Check (optional but useful) ===
+      # === Quick Simulator Check ===
       - name: Build for iOS Simulator (Quick Check)
         run: |
           xcodebuild build \
@@ -67,12 +67,13 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty || true
 
-      # === Main Device Archive + IPA ===
+      # === Main Device Archive (Fixed) ===
       - name: Archive for iOS Device
         run: |
           xcodebuild clean archive \
             -project Silo.xcodeproj \
             -scheme Silo \
+            -sdk iphoneos \                  # ← Important fix
             -destination 'generic/platform=iOS' \
             -archivePath $RUNNER_TEMP/Silo.xcarchive \
             | xcpretty || true

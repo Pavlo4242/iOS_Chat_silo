@@ -1,0 +1,12 @@
+[submodule "Dependencies/VoxrtSilero"]
+	path = Dependencies/VoxrtSilero
+	url = https://github.com/VoxRT/voxrt-silero-ios.git
+[submodule "Dependencies/VoxrtAsr"]
+	path = Dependencies/VoxrtAsr
+	url = https://github.com/Genusdasyurusfibonaccisequence730/voxrt-asr-ios.git
+[submodule "Dependencies/SwiftWhisper"]
+	path = Dependencies/SwiftWhisper
+	url = https://github.com/exPHAT/SwiftWhisper.git
+[submodule "Dependencies/SpeechSwift"]
+	path = Dependencies/SpeechSwift
+	url = https://github.com/soniqo/speech-swift.git

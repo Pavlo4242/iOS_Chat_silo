@@ -9,75 +9,53 @@ on:
 
 jobs:
   build:
-    name: Build iOS
-    runs-on: macos-15
+    runs-on: macos-15   # includes iOS 18.2 SDK
+
     steps:
-      - name: Checkout with submodules
+      - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Select Xcode 16.2
+        run: sudo xcode-select -switch /Applications/Xcode_16.2.app
+
+      - name: Cache SPM
+        uses: actions/cache@v4
         with:
-          submodules: recursive
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            ~/Library/Developer/Xcode/DerivedData
+          key: spm-${{ hashFiles('**/Package.resolved') }}
 
-      - name: Select Xcode & Show SDKs
-        run: |
-          sudo xcode-select -switch /Applications/Xcode_16.2.app
-          xcodebuild -version
-          xcodebuild -showsdks
-          ls -la Silo/   # Check if source files exist
-
-      - name: Resolve Package Dependencies
+      - name: Resolve packages
         run: xcodebuild -resolvePackageDependencies -project Silo.xcodeproj -scheme Silo
 
-      # === Signing Setup (same as before) ===
-      - name: Install Certificate and Profile
-        env:
-          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
-          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
-          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      - name: Archive (unsigned)
         run: |
-          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
-          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
-          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-
-          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
-          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-          security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-          security list-keychain -d user -s $KEYCHAIN_PATH
-
-          echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
-
-      # === Try Archive with verbose output ===
-      - name: Archive for iOS Device
-        run: |
-          echo "=== Starting Archive ==="
           xcodebuild clean archive \
             -project Silo.xcodeproj \
             -scheme Silo \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -archivePath $RUNNER_TEMP/Silo.xcarchive \
-            CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM=D56Z6846H3 \
-            | xcpretty -c || echo "Archive failed with code $?"
+            CODE_SIGNING_ALLOWED=NO
 
-      - name: Show Archive Contents (if exists)
-        if: always()
-        run: ls -la $RUNNER_TEMP/*.xcarchive 2>/dev/null || echo "No xcarchive found"
-
-      - name: Export IPA
-        if: success()
+      - name: Export IPA (unsigned)
         run: |
+          # Create minimal ExportOptions.plist for unsigned IPA
+          cat > ExportOptions.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>development</string>
+            <key>signingStyle</key><string>manual</string>
+          </dict></plist>
+          EOF
           xcodebuild -exportArchive \
             -archivePath $RUNNER_TEMP/Silo.xcarchive \
             -exportOptionsPlist ExportOptions.plist \
             -exportPath $RUNNER_TEMP/build
 
       - name: Upload IPA
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Silo-iOS-IPA

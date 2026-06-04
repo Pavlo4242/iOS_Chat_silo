@@ -369,6 +369,31 @@ actor LlamaContext {
         return new_token_str
     }
 
+    /// Stream token-by-token completion for chat messages.
+    ///
+    /// Applies the model's chat template to `messages`, runs prompt processing
+    /// with KV cache reuse, then yields each decoded token string as it's generated.
+    /// The stream finishes when EOG is reached or the context window is exhausted.
+    func streamComplete(messages: [(role: String, content: String)]) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            let prompt = apply_chat_template(messages: messages)
+            completion_init_with_cache(text: prompt)
+
+            while !is_done {
+                // Apply sliding window if context is nearly full
+                applyContextWindow()
+
+                let token = completion_loop()
+                if !token.isEmpty {
+                    continuation.yield(token)
+                }
+            }
+
+            clearGenerationState()
+            continuation.finish()
+        }
+    }
+
     func bench(pp: Int, tg: Int, pl: Int, nr: Int = 1) -> String {
         var pp_avg: Double = 0
         var tg_avg: Double = 0

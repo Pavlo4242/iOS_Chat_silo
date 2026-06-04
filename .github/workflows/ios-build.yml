@@ -1,0 +1,59 @@
+name: iOS Build
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    name: Build for iOS Simulator
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Select Xcode 16.2
+        run: |
+          sudo xcode-select -switch /Applications/Xcode_16.2.app
+          xcodebuild -version
+
+      - name: Cache SPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            .build
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-
+
+      - name: Resolve package dependencies
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project Silo.xcodeproj \
+            -scheme Silo \
+            -clonedSourcePackagesDirPath .spm-packages
+
+      - name: Build for iOS Simulator
+        run: |
+          xcodebuild clean build \
+            -project Silo.xcodeproj \
+            -scheme Silo \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -clonedSourcePackagesDirPath .spm-packages \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty || true
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            ~/Library/Logs/scan
+            DerivedData/Logs
+          retention-days: 7

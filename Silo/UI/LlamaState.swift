@@ -811,6 +811,58 @@ class LlamaState: ObservableObject {
         saveCurrentConversation()
     }
 
+    // MARK: - Translation Streaming
+
+    private let translationSystemPrompt = """
+    You are a Thai to English translator. Output ONLY the English translation, no extra text. Be concise and natural.
+    """
+
+    /// Stream a Thai→English translation token-by-token via llama.cpp.
+    ///
+    /// Each generated token is passed to `onToken` as soon as it's produced,
+    /// enabling real-time UI updates. When generation completes, `onComplete`
+    /// receives the full concatenated translation.
+    ///
+    /// - Parameters:
+    ///   - thaiText: The Thai text to translate.
+    ///   - onToken: Called with each token as it's generated (may be called off main actor).
+    ///   - onComplete: Called once with the full translation when finished.
+    func translateChunk(_ thaiText: String, onToken: @escaping (String) -> Void, onComplete: @escaping (String) -> Void) async {
+        let messages: [(role: String, content: String)] = [
+            (role: "system", content: translationSystemPrompt),
+            (role: "user", content: thaiText)
+        ]
+        var fullTranslation = ""
+
+        guard let cppEngine = inferenceEngine as? LlamaCppEngine else {
+            onComplete("")
+            return
+        }
+
+        let filter = SpecialTokenFilter()
+
+        do {
+            let tokenStream = await cppEngine.streamComplete(messages: messages)
+            for try await token in tokenStream {
+                let filtered = filter.process(token)
+                if !filtered.isEmpty {
+                    fullTranslation += filtered
+                    onToken(filtered)
+                }
+            }
+            // Flush any remaining buffered content
+            let remaining = filter.flush()
+            if !remaining.isEmpty {
+                fullTranslation += remaining
+                onToken(remaining)
+            }
+        } catch {
+            print("Translation error: \(error)")
+        }
+
+        onComplete(fullTranslation)
+    }
+
     func getTotalRAMInGiB() -> Double {
         let totalMemory = ProcessInfo.processInfo.physicalMemory
         return Double(totalMemory) / (1024 * 1024 * 1024)

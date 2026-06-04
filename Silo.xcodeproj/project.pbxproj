@@ -11,6 +11,10 @@
 		72BA6DB62D4AD42600D97817 /* Accelerate.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 72BA6DB52D4AD42600D97817 /* Accelerate.framework */; };
 		72BA6DB72D4AD50000D97817 /* llama.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 72BA6DB82D4AD50000D97817 /* llama.xcframework */; };
 		72BA6DB92D4AD50000D97817 /* llama.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 72BA6DB82D4AD50000D97817 /* llama.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		AA000020AA000020AA000020 /* Qwen3ASR in Frameworks */ = {isa = PBXBuildFile; productRef = AA000010AA000010AA000010 /* Qwen3ASR */; };
+		AA000021AA000021AA000021 /* SpeechVAD in Frameworks */ = {isa = PBXBuildFile; productRef = AA000011AA000011AA000011 /* SpeechVAD */; };
+		AA000022AA000022AA000022 /* MADLADTranslation in Frameworks */ = {isa = PBXBuildFile; productRef = AA000012AA000012AA000012 /* MADLADTranslation */; };
+		AA000023AA000023AA000023 /* AudioCommon in Frameworks */ = {isa = PBXBuildFile; productRef = AA000013AA000013AA000013 /* AudioCommon */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -66,10 +70,44 @@
 				72BA6DB62D4AD42600D97817 /* Accelerate.framework in Frameworks */,
 				72BA6DB42D4AD42100D97817 /* Metal.framework in Frameworks */,
 				72BA6DB72D4AD50000D97817 /* llama.xcframework in Frameworks */,
+				AA000020AA000020AA000020 /* Qwen3ASR in Frameworks */,
+				AA000021AA000021AA000021 /* SpeechVAD in Frameworks */,
+				AA000022AA000022AA000022 /* MADLADTranslation in Frameworks */,
+				AA000023AA000023AA000023 /* AudioCommon in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		AA000001AA000001AA000001 /* XCLocalSwiftPackageReference "Dependencies/speech-swift" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "Dependencies/speech-swift";
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AA000010AA000010AA000010 /* Qwen3ASR */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA000001AA000001AA000001 /* XCLocalSwiftPackageReference "Dependencies/speech-swift" */;
+			productName = Qwen3ASR;
+		};
+		AA000011AA000011AA000011 /* SpeechVAD */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA000001AA000001AA000001 /* XCLocalSwiftPackageReference "Dependencies/speech-swift" */;
+			productName = SpeechVAD;
+		};
+		AA000012AA000012AA000012 /* MADLADTranslation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA000001AA000001AA000001 /* XCLocalSwiftPackageReference "Dependencies/speech-swift" */;
+			productName = MADLADTranslation;
+		};
+		AA000013AA000013AA000013 /* AudioCommon */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA000001AA000001AA000001 /* XCLocalSwiftPackageReference "Dependencies/speech-swift" */;
+			productName = AudioCommon;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin PBXGroup section */
 		72BA6D822D4AD2B000D97817 = {
@@ -119,6 +157,12 @@
 				72BA6D8D2D4AD2B000D97817 /* Silo */,
 			);
 			name = Silo;
+			packageProductDependencies = (
+				AA000010AA000010AA000010 /* Qwen3ASR */,
+				AA000011AA000011AA000011 /* SpeechVAD */,
+				AA000012AA000012AA000012 /* MADLADTranslation */,
+				AA000013AA000013AA000013 /* AudioCommon */,
+			);
 			productName = Silo;
 			productReference = 72BA6D8B2D4AD2B000D97817 /* Silo.app */;
 			productType = "com.apple.product-type.application";
@@ -147,6 +191,9 @@
 			);
 			mainGroup = 72BA6D822D4AD2B000D97817;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				AA000001AA000001AA000001 /* XCLocalSwiftPackageReference "Dependencies/speech-swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 72BA6D8C2D4AD2B000D97817 /* Products */;
 			projectDirPath = "";

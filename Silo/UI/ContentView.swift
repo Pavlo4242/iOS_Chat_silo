@@ -7,6 +7,7 @@ struct ContentView: View {
     @State private var drawerOffset: CGFloat = 0
     @State private var showSettings = false
     @State private var showManageModels = false
+    @State private var showTranslation = false
     @FocusState private var isFocused: Bool
 
     private let drawerWidth: CGFloat = 300
@@ -80,6 +81,9 @@ struct ContentView: View {
                         },
                         onManageModels: {
                             showManageModels = true
+                        },
+                        onTranslation: {
+                            showTranslation = true
                         }
                     )
 
@@ -201,6 +205,18 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showManageModels) {
                 ManageModelsView(llamaState: llamaState)
+            }
+            .sheet(isPresented: $showTranslation) {
+                NavigationStack {
+                    TranslationView()
+                        .navigationTitle("Live Translation")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .navigationBarTrailing) {
+                                Button("Done") { showTranslation = false }
+                            }
+                        }
+                }
             }
         }
         .background(Color(.systemBackground))

@@ -25,3 +25,9 @@
 [submodule "Dependencies/speech-swift"]
 	path = Dependencies/speech-swift
 	url = https://github.com/soniqo/speech-swift.git
+[submodule "whisper_streaming"]
+	path = whisper_streaming
+	url = https://github.com/ufal/whisper_streaming
+[submodule "Dependencies/whisper_streaming"]
+	path = Dependencies/whisper_streaming
+	url = https://github.com/ufal/whisper_streaming

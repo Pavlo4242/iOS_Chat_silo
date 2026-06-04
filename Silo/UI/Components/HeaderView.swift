@@ -12,6 +12,7 @@ struct HeaderView: View {
     let onModelSelect: (Model) -> Void
     let onNewChat: () -> Void
     let onManageModels: () -> Void
+    let onTranslation: () -> Void
 
     @State private var showModelPicker = false
 
@@ -101,6 +102,14 @@ struct HeaderView: View {
                 .disabled((currentModel.isEmpty && !models.isEmpty) || isGenerating || isLoadingModel || isDownloading)
 
                 Spacer()
+
+                // Translation mode button
+                Button(action: onTranslation) {
+                    Image(systemName: "waveform.and.mic")
+                        .font(.system(size: 18))
+                        .foregroundColor(.primary)
+                }
+                .frame(width: 44, height: 44)
 
                 Button(action: onNewChat) {
                     Image(systemName: "square.and.pencil")

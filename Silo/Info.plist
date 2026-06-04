@@ -4,5 +4,7 @@
 <dict>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Live translation uses your microphone to listen for Thai speech and translate it to English in real time.</string>
 </dict>
 </plist>

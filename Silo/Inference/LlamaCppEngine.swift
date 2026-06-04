@@ -94,4 +94,16 @@ actor LlamaCppEngine: InferenceEngine {
     func deinitialize() async {
         llamaContext = nil
     }
+
+    /// Stream token-by-token completion for chat messages.
+    /// Returns an AsyncThrowingStream that yields each decoded token string.
+    func streamComplete(messages: [(role: String, content: String)]) async -> AsyncThrowingStream<String, Error> {
+        guard let context = llamaContext else {
+            return AsyncThrowingStream { continuation in
+                continuation.finish(throwing: NSError(domain: "LlamaCppEngine", code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "Engine not initialized"]))
+            }
+        }
+        return await context.streamComplete(messages: messages)
+    }
 }

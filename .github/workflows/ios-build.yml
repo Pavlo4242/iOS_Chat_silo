@@ -17,24 +17,17 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Select Xcode & Debug SDKs
+      - name: Select Xcode & Show SDKs
         run: |
           sudo xcode-select -switch /Applications/Xcode_16.2.app
           xcodebuild -version
           xcodebuild -showsdks
-
-      - name: Cache SPM dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/Library/Caches/org.swift.swiftpm
-            .build
-          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          ls -la Silo/   # Check if source files exist
 
       - name: Resolve Package Dependencies
         run: xcodebuild -resolvePackageDependencies -project Silo.xcodeproj -scheme Silo
 
-      # === Signing Setup ===
+      # === Signing Setup (same as before) ===
       - name: Install Certificate and Profile
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
@@ -57,36 +50,31 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
 
-      # === Simulator Check (Simplified) ===
-      - name: Build for iOS Simulator (Quick Check)
-        run: |
-          xcodebuild build \
-            -project Silo.xcodeproj \
-            -scheme Silo \
-            -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator' \
-            CODE_SIGNING_ALLOWED=NO \
-            | xcpretty || true
-
-      # === Main Device Archive ===
+      # === Try Archive with verbose output ===
       - name: Archive for iOS Device
         run: |
+          echo "=== Starting Archive ==="
           xcodebuild clean archive \
             -project Silo.xcodeproj \
             -scheme Silo \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -archivePath $RUNNER_TEMP/Silo.xcarchive \
-            | xcpretty || true
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM=D56Z6846H3 \
+            | xcpretty -c || echo "Archive failed with code $?"
 
-      # === Export IPA ===
+      - name: Show Archive Contents (if exists)
+        if: always()
+        run: ls -la $RUNNER_TEMP/*.xcarchive 2>/dev/null || echo "No xcarchive found"
+
       - name: Export IPA
+        if: success()
         run: |
           xcodebuild -exportArchive \
             -archivePath $RUNNER_TEMP/Silo.xcarchive \
             -exportOptionsPlist ExportOptions.plist \
-            -exportPath $RUNNER_TEMP/build \
-            | xcpretty || true
+            -exportPath $RUNNER_TEMP/build
 
       - name: Upload IPA
         if: success()
@@ -94,14 +82,4 @@ jobs:
         with:
           name: Silo-iOS-IPA
           path: ${{ runner.temp }}/build/*.ipa
-          retention-days: 7
-
-      - name: Upload Logs on Failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-logs
-          path: |
-            ~/Library/Logs/DiagnosticReports
-            $RUNNER_TEMP/*.log
           retention-days: 7

@@ -10,3 +10,18 @@
 [submodule "Dependencies/SpeechSwift"]
 	path = Dependencies/SpeechSwift
 	url = https://github.com/soniqo/speech-swift.git
+[submodule "Dependencies/VoxRT-Silero"]
+	path = Dependencies/VoxRT-Silero
+	url = https://github.com/VoxRT/voxrt-silero-ios.git
+[submodule "Dependencies/VoxRT-ASR"]
+	path = Dependencies/VoxRT-ASR
+	url = https://github.com/VoxRT/voxrt-asr-ios.git
+[submodule "Dependencies/SwiftFasterWhisper"]
+	path = Dependencies/SwiftFasterWhisper
+	url = https://github.com/amraboelela/SwiftFasterWhisper.git
+[submodule "Dependencies/typhoon-asr"]
+	path = Dependencies/typhoon-asr
+	url = https://github.com/scb-10x/typhoon-asr
+[submodule "Dependencies/speech-swift"]
+	path = Dependencies/speech-swift
+	url = https://github.com/soniqo/speech-swift.git

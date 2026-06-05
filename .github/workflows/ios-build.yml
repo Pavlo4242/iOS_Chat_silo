@@ -3,166 +3,57 @@ name: iOS Build & IPA (Fixed)
 on:
   workflow_dispatch:
   push:
-    branches: [master, develop]
-  pull_request:
     branches: [master]
 
 jobs:
   build:
     runs-on: macos-15
     steps:
-      - name: Checkout with submodules
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Select Xcode + Debug
-        run: |
-          sudo xcode-select -switch /Applications/Xcode_16.2.app
-          xcodebuild -version
-          xcodebuild -showsdks
-          ls -la Silo/ || echo "Silo folder missing"
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_16.2.app
 
-      - name: Resolve Packages
+      - name: Build llama.xcframework (CRITICAL)
         run: |
-          xcodebuild -resolvePackageDependencies \
-            -project Silo.xcodeproj \
-            -scheme Silo \
-            -sdk iphoneos || true
+          cd /tmp
+          git clone --depth 1 https://github.com/ggml-org/llama.cpp.git
+          cd llama.cpp
+          ./build-xcframework.sh
+          cp -R build-apple/llama.xcframework ${{ github.workspace }}/
+          ls -la ${{ github.workspace }}/llama.xcframework
 
-      - name: Build (not just clean/archive)
+      - name: Build app
         run: |
-          # First verify scheme works
-          xcodebuild -list -project Silo.xcodeproj
-          
-          # Build for generic iOS device
           xcodebuild build \
             -project Silo.xcodeproj \
             -scheme Silo \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGN_IDENTITY="" \
-            DEVELOPMENT_TEAM="" \
-            PROVISIONING_PROFILE_SPECIFIER="" \
-            | tee build.log
+            CODE_SIGNING_ALLOWED=NO
 
-      - name: Archive (Fixed Destination)
+      - name: Archive
         run: |
           xcodebuild archive \
             -project Silo.xcodeproj \
             -scheme Silo \
             -sdk iphoneos \
             -archivePath $RUNNER_TEMP/Silo.xcarchive \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGN_IDENTITY="" \
-            DEVELOPMENT_TEAM="" \
-            PROVISIONING_PROFILE_SPECIFIER="" \
-            SKIP_INSTALL=NO \
-            BUILD_LIBRARY_FOR_DISTRIBUTION=YES \
-            | tee archive.log
-          
-          # Check if archive was created
-          if [ ! -d "$RUNNER_TEMP/Silo.xcarchive" ]; then
-            echo "❌ Archive creation failed - trying alternative approach"
-            exit 1
-          fi
+            CODE_SIGNING_ALLOWED=NO
 
-      - name: Check Archive Contents
+      - name: Create IPA
         run: |
-          echo "Archive exists, checking contents:"
-          ls -la $RUNNER_TEMP/Silo.xcarchive/
-          ls -la $RUNNER_TEMP/Silo.xcarchive/Products/ || echo "No Products folder"
-          find $RUNNER_TEMP/Silo.xcarchive -name "*.app" -type d || echo "No .app found"
-
-      - name: Export IPA (Unsigned)
-        run: |
-          cat > $RUNNER_TEMP/ExportOptions.plist << 'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>method</key>
-              <string>development</string>
-              <key>signingStyle</key>
-              <string>manual</string>
-              <key>compileBitcode</key>
-              <false/>
-              <key>destination</key>
-              <string>generic/platform=iOS</string>
-              <key>teamID</key>
-              <string></string>
-          </dict>
-          </plist>
-          EOF
-          
-          mkdir -p $RUNNER_TEMP/build
-          
-          xcodebuild -exportArchive \
-            -archivePath $RUNNER_TEMP/Silo.xcarchive \
-            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
-            -exportPath $RUNNER_TEMP/build \
-            -allowProvisioningUpdates \
-            CODE_SIGNING_ALLOWED=NO || echo "Export failed with code $?"
-
-      - name: Create IPA Directly from .app (Fallback)
-        if: failure() || always()
-        run: |
-          # Find the .app bundle
           APP_PATH=$(find $RUNNER_TEMP/Silo.xcarchive -name "*.app" -type d | head -1)
-          
-          if [ -n "$APP_PATH" ] && [ -d "$APP_PATH" ]; then
-            echo "Found .app at: $APP_PATH"
-            
-            # Create Payload folder and zip as IPA
-            mkdir -p $RUNNER_TEMP/build/Payload
-            cp -R "$APP_PATH" $RUNNER_TEMP/build/Payload/
-            cd $RUNNER_TEMP/build
-            zip -r Silo-iPhone15.ipa Payload/
-            echo "✅ Created IPA manually: Silo-iPhone15.ipa"
-            ls -la Silo-iPhone15.ipa
-          else
-            echo "❌ No .app bundle found to package"
-            # Try building a simulator .app as last resort
-            xcodebuild build \
-              -project Silo.xcodeproj \
-              -scheme Silo \
-              -sdk iphonesimulator \
-              -destination 'platform=iOS Simulator,name=iPhone 15' \
-              CODE_SIGNING_ALLOWED=NO \
-              | tee simulator_build.log
-            
-            # Package simulator .app
-            SIM_APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "*.app" -type d 2>/dev/null | grep Simulator | head -1)
-            if [ -n "$SIM_APP_PATH" ]; then
-              mkdir -p $RUNNER_TEMP/build/Payload
-              cp -R "$SIM_APP_PATH" $RUNNER_TEMP/build/Payload/
-              cd $RUNNER_TEMP/build
-              zip -r Silo-iPhone15-Simulator.ipa Payload/
-              echo "✅ Created simulator IPA as fallback"
-            fi
-          fi
-          
-          ls -la $RUNNER_TEMP/build/
+          mkdir -p $RUNNER_TEMP/build/Payload
+          cp -R "$APP_PATH" $RUNNER_TEMP/build/Payload/
+          cd $RUNNER_TEMP/build
+          zip -r Silo-iPhone15.ipa Payload/
 
-      - name: Upload IPA Artifact
-        if: always()
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: Silo-iPhone15-Build
-          path: |
-            ${{ runner.temp }}/build/*.ipa
-            ${{ runner.temp }}/build/*.zip
-          retention-days: 7
-          if-no-files-found: warn
-
-      - name: Upload Build Logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-logs
-          path: |
-            archive.log
-            build.log
-            simulator_build.log
-          retention-days: 3
+          path: ${{ runner.temp }}/build/*.ipa

@@ -173,7 +173,7 @@ jobs:
 
       - name: Archive (unsigned)
         run: |
-          xcodebuild clean archive \
+          xcodebuild archive \
             -project Silo.xcodeproj \
             -scheme Silo \
             -sdk iphoneos \

@@ -16,10 +16,13 @@ jobs:
         with:
           submodules: recursive
 
+   
       - name: Build llama.xcframework (CRITICAL)
         run: |
           cd /tmp
-          jobs:
+          git clone --depth 1 https://github.com/ggml-org/llama.cpp.git
+          cd llama.cpp
+          ./build-xcframework.sh
           cp -R build-apple/llama.xcframework ${{ github.workspace }}/
           ls -la ${{ github.workspace }}/llama.xcframework
 
@@ -38,7 +41,9 @@ jobs:
 
       - name: Verify local package exists
         run: ls -la Dependencies/speech-swift
-
+      - name: Check module name in speech-swift
+        run: |
+          cat Dependencies/speech-swift/Package.swift | grep -A2 "target"
       - name: Cache SPM
         uses: actions/cache@v4
         with:
@@ -57,9 +62,7 @@ jobs:
             -archivePath $RUNNER_TEMP/Silo.xcarchive \
             CODE_SIGNING_ALLOWED=NO
 
-      - name: Check module name in speech-swift
-        run: |
-          cat Dependencies/speech-swift/Package.swift | grep -A2 "target"
+
 
 
       - name: Export IPA

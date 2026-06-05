@@ -129,7 +129,6 @@ jobs:
           set -o pipefail
           xcodebuild clean build \
             -project Silo.xcodeproj \
-            -scheme Silo \
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath build \

@@ -2,10 +2,10 @@ name: iOS Build & IPA
 
 on:
   workflow_dispatch:
-#  push:
-#    branches: [master, develop]
-#  pull_request:
-#    branches: [master]
+  push:
+    branches: [master, develop]
+  pull_request:
+    branches: [master]
 
 jobs:
   build:
@@ -35,16 +35,26 @@ jobs:
           git clone --depth 1 https://github.com/ggml-org/llama.cpp.git
           cd llama.cpp
           
-          # Restrict build to iOS only to save CI time
-          export MINIMAL_MODE=ios
+          # The native script has no skip flags.
+          # We truncate it before it hits the macOS build.
+          awk '/Building for macOS/{exit} {print}' build-xcframework.sh > build-ios-only.sh
           
-          ./build-xcframework.sh
+          # Append custom XCFramework creation for iOS only.
+          cat >> build-ios-only.sh << 'EOF'
+          xcodebuild -create-xcframework \
+            -framework "build-ios-device/llama.framework" \
+            -framework "build-ios-sim/llama.framework" \
+            -output build-apple/llama.xcframework
+          EOF
+          
+          chmod +x build-ios-only.sh
+          ./build-ios-only.sh
+          
           cp -R build-apple/llama.xcframework ${{ github.workspace }}/
 
       - name: Verify llama.xcframework
         run: ls -la ${{ github.workspace }}/llama.xcframework
-      
-      
+
       - name: Select Xcode
         run: |
           sudo xcode-select -switch /Applications/Xcode_16.2.app
@@ -63,6 +73,7 @@ jobs:
           while [ $attempt -le $max_attempts ]; do
             echo "Attempt $attempt of $max_attempts to clone speech-swift..."
             if git clone https://github.com/soniqo/speech-swift.git Packages/speech-swift; then
+              
               # Mark as successful and exit the loop
               success=true
               break
@@ -176,6 +187,16 @@ jobs:
           xcodebuild archive \
             -project Silo.xcodeproj \
             -scheme Silo \
+            -sdk iphoneos \
+            -archivePath $RUNNER_TEMP/Silo.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Archiv2e (unsigned)
+        run: |
+          xcodebuild archive \
+            -project Silo.xcodeproj \
             -sdk iphoneos \
             -archivePath $RUNNER_TEMP/Silo.xcarchive \
             CODE_SIGNING_ALLOWED=NO \

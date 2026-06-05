@@ -1,6 +1,6 @@
 name: iOS Build & Test
 
-on: 
+ 
   workflow dispatch:
   push:
     branches: [ main, develop ]

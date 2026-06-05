@@ -16,7 +16,20 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Build llama.xcframework (CRITICAL)
+      - name: Get latest llama.cpp commit hash
+        id: llama-commit
+        run: |
+          echo "sha=$(git ls-remote https://github.com/ggml-org/llama.cpp.git HEAD | awk '{ print $1 }')" >> $GITHUB_OUTPUT
+
+      - name: Cache llama.xcframework
+        id: cache-llama
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/llama.xcframework
+          key: llama-xcframework-ios-${{ steps.llama-commit.outputs.sha }}
+
+      - name: Build llama.xcframework (Conditional)
+        if: steps.cache-llama.outputs.cache-hit != 'true'
         run: |
           cd /tmp
           git clone --depth 1 https://github.com/ggml-org/llama.cpp.git
@@ -27,8 +40,11 @@ jobs:
           
           ./build-xcframework.sh
           cp -R build-apple/llama.xcframework ${{ github.workspace }}/
-          ls -la ${{ github.workspace }}/llama.xcframework
 
+      - name: Verify llama.xcframework
+        run: ls -la ${{ github.workspace }}/llama.xcframework
+      
+      
       - name: Select Xcode
         run: |
           sudo xcode-select -switch /Applications/Xcode_16.2.app

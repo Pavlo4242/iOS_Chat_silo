@@ -53,7 +53,7 @@ jobs:
       - name: Resolve Package Dependencies
         run: xcodebuild -resolvePackageDependencies -project Silo.xcodeproj -scheme Silo
 
-       - name: Archive (unsigned)
+      - name: Archive (unsigned)
         run: |
           xcodebuild clean archive \
             -project Silo.xcodeproj \

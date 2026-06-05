@@ -8,201 +8,92 @@ on:
     branches: [master]
 
 jobs:
-- name: Get llama.cpp Latest Commit
-  id: llama-commit
-  run: |
-      SHA=$(curl -s https://api.github.com/repos/ggml-org/llama.cpp/commits/master | jq -r '.sha')
-      if [ "$SHA" = "null" ] || [ -z "$SHA" ]; then
-        SHA="fallback-$(date +%Y%m%d)"
-      fi
-      echo "sha=$SHA" >> $GITHUB_OUTPUT
+  build-ios:
+    runs-on: macos-14 # Uses Apple Silicon runner
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
+      - name: Get llama.cpp Latest Commit
+        id: llama-commit
+        run: |
+          SHA=$(curl -s https://api.github.com/repos/ggml-org/llama.cpp/commits/master | jq -r '.sha')
+          if [ "$SHA" = "null" ] || [ -z "$SHA" ]; then
+            SHA="fallback-$(date +%Y%m%d)"
+          fi
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
 
-- name: Restore llama.xcframework Cache
-  id: restore-llama-cache
-  uses: actions/cache/restore@v4
-  with:
-      path: llama.xcframework
-      key: llama-xcframework-${{ runner.os }}-${{ steps.llama-commit.outputs.sha }}
+      - name: Restore llama.xcframework Cache
+        id: restore-llama-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: llama.xcframework
+          key: llama-xcframework-${{ runner.os }}-${{ steps.llama-commit.outputs.sha }}
 
-- name: Set up Xcode 16.2 (iOS 18 SDK)
-  uses: maxim-lobanov/setup-xcode@v1
-  with:
-     xcode-version: '16.2'
+      - name: Set up Xcode 16.2 (iOS 18 SDK)
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.2'
 
-  # 3. Only clone and build llama.cpp if cache was NOT hit
-- name: "Clone Build llama.cpp"
-  if: steps.restore-llama-cache.outputs.cache-hit != 'true'
-  run: |
-       git clone --depth 1 https://github.com/ggml-org/llama.cpp.git /tmp/llama.cpp
-       cd /tmp/llama.cpp
-       chmod +x ./build-xcframework.sh
-       ./build-xcframework.sh
-       cp -R build-apple/llama.xcframework "$GITHUB_WORKSPACE/"
+      # Only clone and build llama.cpp if cache was NOT hit
+      - name: "Clone & Build llama.cpp"
+        if: steps.restore-llama-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 https://github.com/ggml-org/llama.cpp.git /tmp/llama.cpp
+          cd /tmp/llama.cpp
+          chmod +x ./build-xcframework.sh
+          ./build-xcframework.sh
+          cp -R build-apple/llama.xcframework "$GITHUB_WORKSPACE/"
 
-  # 4. Save the compiled llama.xcframework immediately upon successful build
-- name: Save llama.xcframework Cache
-  if: steps.restore-llama-cache.outputs.cache-hit != 'true'
-  uses: actions/cache/save@v4
-  continue-on-error: true
-  with:
-     path: llama.xcframework
-     key: llama-xcframework-${{ runner.os }}-${{ steps.llama-commit.outputs.sha }}
-  
-- name: Restore Xcode DerivedData Cache
-  id: restore-derived-data-cache
-  uses: actions/cache/restore@v4
-  with:
-      path: build
-      key: xcode-derived-data-${{ runner.os }}-${{ hashFiles('Silo.xcodeproj/project.pbxproj') }}-${{ github.sha }}
-      restore-keys: |
-        xcode-derived-data-${{ runner.os }}-${{ hashFiles('Silo.xcodeproj/project.pbxproj') }}-
-        xcode-derived-data-${{ runner.os }}-
-  
-- name: Resolve Swift Package Dependencies
-  run: |
-      xcodebuild -resolvePackageDependencies -project Silo.xcodeproj
-  
-- name: Build Xcode Project (Unsigned)
-  id: build-xcode
-  run: |
-      xcodebuild build \
-        -project Silo.xcodeproj \
-        -scheme Silo \
-        -configuration Release \
-        -sdk iphoneos \
-        -derivedDataPath ./build \
-        CODE_SIGNING_ALLOWED=NO \
-        CODE_SIGNING_REQUIRED=NO \
-        CODE_SIGN_IDENTITY="" \
-        IPHONEOS_DEPLOYMENT_TARGET=18.0
-  
+      # Save the compiled llama.xcframework immediately upon successful build
+      - name: Save llama.xcframework Cache
+        if: steps.restore-llama-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: llama.xcframework
+          key: llama-xcframework-${{ runner.os }}-${{ steps.llama-commit.outputs.sha }}
 
-
-- name: Save Xcode DerivedData Cache
-  if: always() && steps.restore-derived-data-cache.outputs.cache-hit != 'true'
-  uses: actions/cache/save@v4
-  continue-on-error: true
-  with:
-      path: build
-      key: xcode-derived-data-${{ runner.os }}-${{ hashFiles('Silo.xcodeproj/project.pbxproj') }}-${{ github.sha }}
-  
-- name: Package Unsigned IPA
-  run: |
-     mkdir -p Payload
-      cp -R ./build/Build/Products/Release-iphoneos/Silo.app Payload/
-      zip -r Silo.ipa Payload
-  
-- name: Upload IPA Artifact
-  uses: actions/upload-artifact@v4
-  with:
-      name: Silo-Unsigned-IPA
-      path: Silo.ipa
-  
-- name: Patch Xcode Project (Dependencies & Targets)
-  run: |
-      gem install xcodeproj --no-document
-      ruby -e "
-      require 'xcodeproj'
-      
-      # Open the project
-      project = Xcodeproj::Project.open('Silo.xcodeproj')
-      target = project.targets.first
-      
-      # Fix deployment targets
-      project.build_configurations.each { |c| c.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '18.2' }
-      target.build_configurations.each { |c| c.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '18.2' }
-      
-      # Add Remote Package
-      pkg_remote = project.new(Xcodeproj::Project::Object::XCRemoteSwiftPackageReference)
-      pkg_remote.repositoryURL = 'https://github.com/VoxRT/voxrt-silero-ios.git'
-      pkg_remote.requirement = { 'kind' => 'upToNextMajorVersion', 'minimumVersion' => '0.1.3' }
-      project.root_object.package_references << pkg_remote
-      
-      prod_vad = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
-      prod_vad.package = pkg_remote
-      prod_vad.product_name = 'VoxrtSilero'
-      target.package_product_dependencies << prod_vad
-      
-      # Add Local Package
-      pkg_local = project.new(Xcodeproj::Project::Object::XCLocalSwiftPackageReference)
-      pkg_local.relative_path = 'Packages/speech-swift'
-      project.root_object.package_references << pkg_local
-      
-      prod_qwen = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
-      prod_qwen.package = pkg_local
-      prod_qwen.product_name = 'Qwen3ASR'
-      target.package_product_dependencies << prod_qwen
-      
-      prod_audio = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
-      prod_audio.package = pkg_local
-      prod_audio.product_name = 'AudioCommon'
-      target.package_product_dependencies << prod_audio
-      
-      # Link products to Frameworks Build Phase
-      phase = target.frameworks_build_phase
-      
-      bf_vad = project.new(Xcodeproj::Project::Object::PBXBuildFile)
-      bf_vad.product_ref = prod_vad
-      phase.files << bf_vad
-      
-      bf_qwen = project.new(Xcodeproj::Project::Object::PBXBuildFile)
-      bf_qwen.product_ref = prod_qwen
-      phase.files << bf_qwen
-      
-      bf_audio = project.new(Xcodeproj::Project::Object::PBXBuildFile)
-      bf_audio.product_ref = prod_audio
-      phase.files << bf_audio
-      
-      project.save
-      "
-  
-- name: Cache SPM
-  uses: actions/cache@v4
-  with:
-    path: ~/Library/Caches/org.swift.swiftpm
-    key: spm-${{ hashFiles('**/Package.resolved') }}
-  
-- name: Resolve Package Dependencies
-  run: xcodebuild -resolvePackageDependencies -project Silo.xcodeproj -scheme Silo
-  
-- name: Archive (unsigned)
-  run: |
-      xcodebuild archive \
-        -project Silo.xcodeproj \
-        -scheme Silo \
-        -sdk iphoneos \
-        -archivePath $RUNNER_TEMP/Silo.xcarchive \
-        CODE_SIGNING_ALLOWED=NO \
-        CODE_SIGNING_REQUIRED=NO \
-        CODE_SIGN_IDENTITY=""
-  
-- name: Export IPA
-  run: |
-      cat > ExportOptions.plist << EOF
-      <?xml version="1.0" encoding="UTF-8"?>
-      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-      <plist version="1.0">
-      <dict>
-        <key>method</key>
-        <string>development</string>
-        <key>signingStyle</key>
-        <string>manual</string>
-        <key>signingCertificate</key>
-        <string></string>
-        <key>provisioningProfiles</key>
-        <dict/>
-      </dict>
-      </plist>
-      EOF
-      xcodebuild -exportArchive \
-        -archivePath $RUNNER_TEMP/Silo.xcarchive \
-        -exportOptionsPlist ExportOptions.plist \
-        -exportPath $RUNNER_TEMP/build
-  
-- name: Upload IPA
-  uses: actions/upload-artifact@v4
-  with:
-     name: Silo-iOS-IPA
-     path: ${{ runner.temp }}/build/*.ipa
-
+      # Step Moved Up: Patch Xcode Project BEFORE resolving dependencies or building
+      - name: Patch Xcode Project (Dependencies & Targets)
+        run: |
+          gem install xcodeproj --no-document
+          ruby -e "
+          require 'xcodeproj'
+          
+          # Open the project
+          project = Xcodeproj::Project.open('Silo.xcodeproj')
+          target = project.targets.first
+          
+          # Fix deployment targets to 18.2
+          project.build_configurations.each { |c| c.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '18.2' }
+          target.build_configurations.each { |c| c.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '18.2' }
+          
+          # Add Remote Package
+          pkg_remote = project.new(Xcodeproj::Project::Object::XCRemoteSwiftPackageReference)
+          pkg_remote.repositoryURL = 'https://github.com/VoxRT/voxrt-silero-ios.git'
+          pkg_remote.requirement = { 'kind' => 'upToNextMajorVersion', 'minimumVersion' => '0.1.3' }
+          project.root_object.package_references << pkg_remote
+          
+          prod_vad = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
+          prod_vad.package = pkg_remote
+          prod_vad.product_name = 'VoxrtSilero'
+          target.package_product_dependencies << prod_vad
+          
+          # Add Local Package
+          pkg_local = project.new(Xcodeproj::Project::Object::XCLocalSwiftPackageReference)
+          pkg_local.relative_path = 'Packages/speech-swift'
+          project.root_object.package_references << pkg_local
+          
+          prod_qwen = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
+          prod_qwen.package = pkg_local
+          prod_qwen.product_name = 'Qwen3ASR'
+          target.package_product_dependencies << prod_qwen
+          
+          prod_audio = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
+          prod_audio.package = pkg_local
+          prod_audio.product_name = 'AudioCommon'
+          target.package_product_dependencies << prod_audio
+          
+          # Link products to Frameworks Build Phase
+          phase = target.frameworks_build_phase

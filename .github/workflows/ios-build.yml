@@ -21,6 +21,10 @@ jobs:
           cd /tmp
           git clone --depth 1 https://github.com/ggml-org/llama.cpp.git
           cd llama.cpp
+          
+          # Restrict build to iOS only to save CI time
+          export MINIMAL_MODE=ios
+          
           ./build-xcframework.sh
           cp -R build-apple/llama.xcframework ${{ github.workspace }}/
           ls -la ${{ github.workspace }}/llama.xcframework

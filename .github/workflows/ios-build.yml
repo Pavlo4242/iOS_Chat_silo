@@ -128,7 +128,7 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild build \
-            -scheme Silo
+            -scheme Silo \
             -project Silo.xcodeproj \
             -configuration Release \
             -sdk iphoneos \

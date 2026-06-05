@@ -26,7 +26,7 @@ jobs:
         with:
           path: ~/Library/Caches/org.swift.swiftpm
           key: spm-${{ hashFiles('**/Package.resolved') }}
-      - name: Resolve packages
+      
 
 
       - name: Build llama.xcframework (CRITICAL)

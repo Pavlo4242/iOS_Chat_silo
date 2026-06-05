@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Get llama.cpp Latest Commit
         id: llama-commit
@@ -82,7 +84,7 @@ jobs:
           
           # Add Local Package
           pkg_local = project.new(Xcodeproj::Project::Object::XCLocalSwiftPackageReference)
-          pkg_local.relative_path = 'Packages/speech-swift'
+          pkg_local.relative_path = 'Dependencies/speech-swift'
           project.root_object.package_references << pkg_local
           
           prod_qwen = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)

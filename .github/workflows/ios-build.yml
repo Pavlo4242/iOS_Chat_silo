@@ -8,33 +8,32 @@ on:
     branches: [master]
 
 jobs:
-  # 1. Fetch llama.cpp's latest commit hash to use as part of the cache key
- - name: Get llama.cpp Latest Commit
-   id: llama-commit
-   run: |
+- name: Get llama.cpp Latest Commit
+  id: llama-commit
+  run: |
       SHA=$(curl -s https://api.github.com/repos/ggml-org/llama.cpp/commits/master | jq -r '.sha')
       if [ "$SHA" = "null" ] || [ -z "$SHA" ]; then
         SHA="fallback-$(date +%Y%m%d)"
       fi
       echo "sha=$SHA" >> $GITHUB_OUTPUT
 
-  # 2. Attempt to restore the pre-compiled llama.xcframework
- - name: Restore llama.xcframework Cache
-   id: restore-llama-cache
-   uses: actions/cache/restore@v4
-   with:
+
+- name: Restore llama.xcframework Cache
+  id: restore-llama-cache
+  uses: actions/cache/restore@v4
+  with:
       path: llama.xcframework
       key: llama-xcframework-${{ runner.os }}-${{ steps.llama-commit.outputs.sha }}
 
- - name: Set up Xcode 16.2 (iOS 18 SDK)
-   uses: maxim-lobanov/setup-xcode@v1
-   with:
+- name: Set up Xcode 16.2 (iOS 18 SDK)
+  uses: maxim-lobanov/setup-xcode@v1
+  with:
      xcode-version: '16.2'
 
   # 3. Only clone and build llama.cpp if cache was NOT hit
- - name: "Clone Build llama.cpp"
-   if: steps.restore-llama-cache.outputs.cache-hit != 'true'
-   run: |
+- name: "Clone Build llama.cpp"
+  if: steps.restore-llama-cache.outputs.cache-hit != 'true'
+  run: |
        git clone --depth 1 https://github.com/ggml-org/llama.cpp.git /tmp/llama.cpp
        cd /tmp/llama.cpp
        chmod +x ./build-xcframework.sh
@@ -42,33 +41,31 @@ jobs:
        cp -R build-apple/llama.xcframework "$GITHUB_WORKSPACE/"
 
   # 4. Save the compiled llama.xcframework immediately upon successful build
-  - name: Save llama.xcframework Cache
-    if: steps.restore-llama-cache.outputs.cache-hit != 'true'
-    uses: actions/cache/save@v4
-    continue-on-error: true
-    with:
-      path: llama.xcframework
-      key: llama-xcframework-${{ runner.os }}-${{ steps.llama-commit.outputs.sha }}
+- name: Save llama.xcframework Cache
+  if: steps.restore-llama-cache.outputs.cache-hit != 'true'
+  uses: actions/cache/save@v4
+  continue-on-error: true
+  with:
+     path: llama.xcframework
+     key: llama-xcframework-${{ runner.os }}-${{ steps.llama-commit.outputs.sha }}
   
-  # 5. Restore Xcode's DerivedData (contains Swift Package Manager resolutions and intermediate build files)
-  - name: Restore Xcode DerivedData Cache
-    id: restore-derived-data-cache
-    uses: actions/cache/restore@v4
-    with:
+- name: Restore Xcode DerivedData Cache
+  id: restore-derived-data-cache
+  uses: actions/cache/restore@v4
+  with:
       path: build
       key: xcode-derived-data-${{ runner.os }}-${{ hashFiles('Silo.xcodeproj/project.pbxproj') }}-${{ github.sha }}
       restore-keys: |
         xcode-derived-data-${{ runner.os }}-${{ hashFiles('Silo.xcodeproj/project.pbxproj') }}-
         xcode-derived-data-${{ runner.os }}-
   
-  - name: Resolve Swift Package Dependencies
-    run: |
+- name: Resolve Swift Package Dependencies
+  run: |
       xcodebuild -resolvePackageDependencies -project Silo.xcodeproj
   
-  # 6. Build the Xcode project (outputting to the cached './build' directory)
-  - name: Build Xcode Project (Unsigned)
-    id: build-xcode
-    run: |
+- name: Build Xcode Project (Unsigned)
+  id: build-xcode
+  run: |
       xcodebuild build \
         -project Silo.xcodeproj \
         -scheme Silo \
@@ -80,30 +77,30 @@ jobs:
         CODE_SIGN_IDENTITY="" \
         IPHONEOS_DEPLOYMENT_TARGET=18.0
   
-  # 7. Save DerivedData cache regardless of whether the build succeeded or failed (always())
-  # This preserves partially compiled files so subsequent runs don't start from scratch
-  - name: Save Xcode DerivedData Cache
-    if: always() && steps.restore-derived-data-cache.outputs.cache-hit != 'true'
-    uses: actions/cache/save@v4
-    continue-on-error: true
-    with:
+
+
+- name: Save Xcode DerivedData Cache
+  if: always() && steps.restore-derived-data-cache.outputs.cache-hit != 'true'
+  uses: actions/cache/save@v4
+  continue-on-error: true
+  with:
       path: build
       key: xcode-derived-data-${{ runner.os }}-${{ hashFiles('Silo.xcodeproj/project.pbxproj') }}-${{ github.sha }}
   
-  - name: Package Unsigned IPA
-    run: |
-      mkdir -p Payload
+- name: Package Unsigned IPA
+  run: |
+     mkdir -p Payload
       cp -R ./build/Build/Products/Release-iphoneos/Silo.app Payload/
       zip -r Silo.ipa Payload
   
-  - name: Upload IPA Artifact
-    uses: actions/upload-artifact@v4
-    with:
+- name: Upload IPA Artifact
+  uses: actions/upload-artifact@v4
+  with:
       name: Silo-Unsigned-IPA
       path: Silo.ipa
   
-  - name: Patch Xcode Project (Dependencies & Targets)
-    run: |
+- name: Patch Xcode Project (Dependencies & Targets)
+  run: |
       gem install xcodeproj --no-document
       ruby -e "
       require 'xcodeproj'
@@ -160,17 +157,17 @@ jobs:
       project.save
       "
   
-  - name: Cache SPM
-    uses: actions/cache@v4
-    with:
-      path: ~/Library/Caches/org.swift.swiftpm
-      key: spm-${{ hashFiles('**/Package.resolved') }}
+- name: Cache SPM
+  uses: actions/cache@v4
+  with:
+    path: ~/Library/Caches/org.swift.swiftpm
+    key: spm-${{ hashFiles('**/Package.resolved') }}
   
-  - name: Resolve Package Dependencies
-    run: xcodebuild -resolvePackageDependencies -project Silo.xcodeproj -scheme Silo
+- name: Resolve Package Dependencies
+  run: xcodebuild -resolvePackageDependencies -project Silo.xcodeproj -scheme Silo
   
-  - name: Archive (unsigned)
-    run: |
+- name: Archive (unsigned)
+  run: |
       xcodebuild archive \
         -project Silo.xcodeproj \
         -scheme Silo \
@@ -180,8 +177,8 @@ jobs:
         CODE_SIGNING_REQUIRED=NO \
         CODE_SIGN_IDENTITY=""
   
-  - name: Export IPA
-    run: |
+- name: Export IPA
+  run: |
       cat > ExportOptions.plist << EOF
       <?xml version="1.0" encoding="UTF-8"?>
       <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -203,9 +200,9 @@ jobs:
         -exportOptionsPlist ExportOptions.plist \
         -exportPath $RUNNER_TEMP/build
   
-  - name: Upload IPA
-    uses: actions/upload-artifact@v4
-    with:
-      name: Silo-iOS-IPA
-      path: ${{ runner.temp }}/build/*.ipa
-      if-no-files-found: warn
+- name: Upload IPA
+  uses: actions/upload-artifact@v4
+  with:
+     name: Silo-iOS-IPA
+     path: ${{ runner.temp }}/build/*.ipa
+

@@ -5,7 +5,7 @@ on:
   push:
     branches: [master, develop]
   pull_request:
-    branches: [master]
+    branches: [master]e
 
 jobs:
   build-ios:
@@ -121,9 +121,14 @@ jobs:
       - name: Resolve Swift Packages
         run: xcodebuild -resolvePackageDependencies -project Silo.xcodeproj
 
+      - name: Install xcbeautify
+  # Install the formatter on the macOS runner
+        run: brew install xcbeautify
+
       # Build application without requiring a signing certificate
       - name: Build Application
         run: |
+          set -o pipefail
           xcodebuild clean build \
             -project Silo.xcodeproj \
             -scheme Silo \
@@ -132,7 +137,8 @@ jobs:
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY=""
+            CODE_SIGN_IDENTITY="" \
+            | xcbeautify
 
       # Package the built app into a payload directory and zip into an IPA
       - name: Create IPA

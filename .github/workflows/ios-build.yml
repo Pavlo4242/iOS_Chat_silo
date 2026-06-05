@@ -33,7 +33,7 @@ jobs:
           key: llama-xcframework-${{ runner.os }}-${{ steps.llama-commit.outputs.sha }}
 
       - name: Set up Xcode 16.2 (iOS 18 SDK)
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer16.2
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
 
       # Only clone and build llama.cpp if cache was NOT hit
       - name: "Clone & Build llama.cpp"

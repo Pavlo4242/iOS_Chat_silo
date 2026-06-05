@@ -64,15 +64,23 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY=""
 
-
-
-
       - name: Export IPA
         run: |
           cat > ExportOptions.plist << EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0"><dict><key>method</key><string>development</string><key>signingStyle</key><string>manual</string></dict></plist>
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>development</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>signingCertificate</key>
+            <string></string>
+            <key>provisioningProfiles</key>
+            <dict/>
+          </dict>
+          </plist>
           EOF
           xcodebuild -exportArchive \
             -archivePath $RUNNER_TEMP/Silo.xcarchive \

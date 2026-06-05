@@ -95,5 +95,22 @@ jobs:
           prod_audio.product_name = 'AudioCommon'
           target.package_product_dependencies << prod_audio
           
-          # Link products to Frameworks Build Phase
+          puts '--> Linking products to Frameworks Build Phase...'
           phase = target.frameworks_build_phase
+        
+          bf_vad = project.new(Xcodeproj::Project::Object::PBXBuildFile)
+          bf_vad.product_ref = prod_vad
+          phase.files << bf_vad
+        
+          bf_qwen = project.new(Xcodeproj::Project::Object::PBXBuildFile)
+          bf_qwen.product_ref = prod_qwen
+          phase.files << bf_qwen
+        
+          bf_audio = project.new(Xcodeproj::Project::Object::PBXBuildFile)
+          bf_audio.product_ref = prod_audio
+          phase.files << bf_audio
+        
+          puts '--> Saving Silo.xcodeproj...'
+          project.save
+          puts '--> Xcode project patched successfully!'
+          "

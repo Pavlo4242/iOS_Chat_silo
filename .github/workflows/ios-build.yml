@@ -127,7 +127,7 @@ jobs:
       - name: Build Application
         run: |
           set -o pipefail
-          xcodebuild clean build \
+          xcodebuild build \
             -scheme Silo
             -project Silo.xcodeproj \
             -configuration Release \

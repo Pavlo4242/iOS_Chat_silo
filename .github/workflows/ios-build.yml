@@ -124,20 +124,20 @@ jobs:
         run: brew install xcbeautify
 
       # Build application without requiring a signing certificate
-      - name: Build Application
+      - name: Build Xcode Project (Unsigned)
+        id: build-xcode
         run: |
-          set -o pipefail
           xcodebuild build \
-            -scheme Silo \
             -project Silo.xcodeproj \
+            -scheme Silo \
             -configuration Release \
             -sdk iphoneos \
-            -derivedDataPath build \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath ./build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            | xcbeautify
-
+            IPHONEOS_DEPLOYMENT_TARGET=18.2
       # Package the built app into a payload directory and zip into an IPA
       - name: Create IPA
         run: |

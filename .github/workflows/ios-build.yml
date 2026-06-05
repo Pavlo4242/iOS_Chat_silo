@@ -10,23 +10,28 @@ on:
 jobs:
   build:
     runs-on: macos-15
-
     steps:
-      - name: Checkout
+      - name: Checkout with submodules
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      - name: Select Xcode 16.2 & Install iOS 18.2 Platform
+      - name: Select Xcode & Install iOS 18.2 Platform
         run: |
           sudo xcode-select -switch /Applications/Xcode_16.2.app
           xcodebuild -downloadPlatform iOS
-          xcodebuild -showsdks | grep iphoneos
+
+      - name: Fix Deployment Target (18.6 → 18.2)
+        run: |
+          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 18.6/IPHONEOS_DEPLOYMENT_TARGET = 18.2/g' Silo.xcodeproj/project.pbxproj
+
+      - name: Verify local package exists
+        run: ls -la Dependencies/speech-swift
 
       - name: Cache SPM
         uses: actions/cache@v4
         with:
-          path: |
-            ~/Library/Caches/org.swift.swiftpm
-            ~/Library/Developer/Xcode/DerivedData
+          path: ~/Library/Caches/org.swift.swiftpm
           key: spm-${{ hashFiles('**/Package.resolved') }}
 
       - name: Resolve Package Dependencies
@@ -41,16 +46,13 @@ jobs:
             -archivePath $RUNNER_TEMP/Silo.xcarchive \
             CODE_SIGNING_ALLOWED=NO
 
-      - name: Create ExportOptions.plist (Unsigned)
+      - name: Export IPA
         run: |
           cat > ExportOptions.plist << EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0"><dict><key>method</key><string>development</string><key>signingStyle</key><string>manual</string></dict></plist>
           EOF
-
-      - name: Export IPA
-        run: |
           xcodebuild -exportArchive \
             -archivePath $RUNNER_TEMP/Silo.xcarchive \
             -exportOptionsPlist ExportOptions.plist \
@@ -61,5 +63,4 @@ jobs:
         with:
           name: Silo-iOS-IPA
           path: ${{ runner.temp }}/build/*.ipa
-          retention-days: 7
-          if-no-files-found: warn   # fixed typo here
+          if-no-files-found: warn

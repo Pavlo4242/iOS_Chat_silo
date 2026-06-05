@@ -46,6 +46,11 @@ jobs:
             -archivePath $RUNNER_TEMP/Silo.xcarchive \
             CODE_SIGNING_ALLOWED=NO
 
+      - name: Check module name in speech-swift
+        run: |
+          cat Dependencies/speech-swift/Package.swift | grep -A2 "target"
+
+
       - name: Export IPA
         run: |
           cat > ExportOptions.plist << EOF

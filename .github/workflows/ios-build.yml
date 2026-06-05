@@ -27,18 +27,74 @@ jobs:
           ls -la ${{ github.workspace }}/llama.xcframework
 
 
-      - name: Select Xcode & Install iOS 18.2 Platform
+      - name: Select Xcode
         run: |
           sudo xcode-select -switch /Applications/Xcode_16.2.app
          
 
-   
-
       - name: Verify local package exists
-        run: ls -la Dependencies/speech-swift
-      - name: Check module name in speech-swift
+        run: ls -la Packages/speech-swift
+
+
+      - name: Patch Xcode Project (Dependencies & Targets)
         run: |
-          cat Dependencies/speech-swift/Package.swift | grep -A2 "target"
+          gem install xcodeproj --no-document
+          ruby -e "
+          require 'xcodeproj'
+          
+          # Open the project
+          project = Xcodeproj::Project.open('Silo.xcodeproj')
+          target = project.targets.first
+          
+          # Fix deployment targets
+          project.build_configurations.each { |c| c.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '18.2' }
+          target.build_configurations.each { |c| c.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '18.2' }
+          
+          # Add Remote Package
+          pkg_remote = project.new(Xcodeproj::Project::Object::XCRemoteSwiftPackageReference)
+          pkg_remote.repositoryURL = 'https://github.com/VoxRT/voxrt-silero-ios.git'
+          pkg_remote.requirement = { 'kind' => 'upToNextMajorVersion', 'minimumVersion' => '0.1.3' }
+          project.root_object.package_references << pkg_remote
+          
+          prod_vad = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
+          prod_vad.package = pkg_remote
+          prod_vad.product_name = 'VoxrtSilero'
+          target.package_product_dependencies << prod_vad
+          
+          # Add Local Package
+          pkg_local = project.new(Xcodeproj::Project::Object::XCLocalSwiftPackageReference)
+          pkg_local.relative_path = 'Packages/speech-swift'
+          project.root_object.package_references << pkg_local
+          
+          prod_qwen = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
+          prod_qwen.package = pkg_local
+          prod_qwen.product_name = 'Qwen3ASR'
+          target.package_product_dependencies << prod_qwen
+          
+          prod_audio = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
+          prod_audio.package = pkg_local
+          prod_audio.product_name = 'AudioCommon'
+          target.package_product_dependencies << prod_audio
+          
+          # Link products to Frameworks Build Phase
+          phase = target.frameworks_build_phase
+          
+          bf_vad = project.new(Xcodeproj::Project::Object::PBXBuildFile)
+          bf_vad.product_ref = prod_vad
+          phase.files << bf_vad
+          
+          bf_qwen = project.new(Xcodeproj::Project::Object::PBXBuildFile)
+          bf_qwen.product_ref = prod_qwen
+          phase.files << bf_qwen
+          
+          bf_audio = project.new(Xcodeproj::Project::Object::PBXBuildFile)
+          bf_audio.product_ref = prod_audio
+          phase.files << bf_audio
+          
+          project.save
+          "
+
+
       - name: Cache SPM
         uses: actions/cache@v4
         with:

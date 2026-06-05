@@ -27,7 +27,17 @@ jobs:
 
       - name: Select Xcode
         run: |
-          sudo xcode-select -switch /Applications/Xcode_16.2.app
+          sudo gem install xcode
+
+      - name: Cache Xcode Derived Data
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Developer/Xcode/DerivedData
+            ~/Library/Developer/Xcode/Archives
+          key: ${{ runner.os }}-xcode-${{ hashFiles('apps/mobile/ios/**/*.swift', 'apps/mobile/ios/**/*.m', 'apps/mobile/ios/**/*.h') }}
+          restore-keys: |
+            ${{ runner.os }}-xcode-
 
       - name: Clone local package dependency
         run: |

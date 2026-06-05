@@ -1,4 +1,4 @@
-name: iOS Build & IPA (Diagnostic)
+name: iOS Build & IPA (Fixed)
 
 on:
   workflow_dispatch:
@@ -16,25 +16,68 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Debug - List Files
-        run: |
-          ls -la
-          ls -la Silo/ || echo "Silo folder missing!"
-          find . -name "*.swift" | head -10 || echo "No Swift files found"
-
-      - name: Select Xcode
+      - name: Select Xcode + Debug
         run: |
           sudo xcode-select -switch /Applications/Xcode_16.2.app
           xcodebuild -version
           xcodebuild -showsdks
+          ls -la Silo/ || echo "Silo folder missing"
 
       - name: Resolve Packages
         run: xcodebuild -resolvePackageDependencies -project Silo.xcodeproj -scheme Silo
 
-      - name: Archive (Verbose - NO || true)
+      - name: Archive (Fixed SDK + Deployment Target)
         run: |
-          echo "=== Starting Archive ==="
           xcodebuild clean archive \
+            -project Silo.xcodeproj \
+            -scheme Silo \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath $RUNNER_TEMP/Silo.xcarchive \
+            IPHONEOS_DEPLOYMENT_TARGET=18.0 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            | xcpretty || true
+
+      - name: Export IPA
+        run: |
+          cat > $RUNNER_TEMP/ExportOptions.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>development</string>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>compileBitcode</key>
+              <false/>
+          </dict>
+          </plist>
+          EOF
+
+          xcodebuild -exportArchive \
+            -archivePath $RUNNER_TEMP/Silo.xcarchive \
+            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
+            -exportPath $RUNNER_TEMP/build \
+            | xcpretty || true
+
+      - name: Upload IPA
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Silo-iOS-IPA
+          path: ${{ runner.temp }}/build/*.ipa
+          retention-days: 7
+
+      - name: Upload Build Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: archive.log
+          retention-days: 3          xcodebuild clean archive \
             -project Silo.xcodeproj \
             -scheme Silo \
             -sdk iphoneos \

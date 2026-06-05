@@ -44,21 +44,8 @@ jobs:
           git clone --depth 1 --branch ${{ steps.llama-version.outputs.tag }} https://github.com/ggml-org/llama.cpp.git
           cd llama.cpp
           
-          # The native script has no skip flags.
-          # We truncate it before it hits the macOS build.
-          awk '/Building for macOS/{exit} {print}' build-xcframework.sh > build-ios-only.sh
-          
-          # Append custom XCFramework creation for iOS only.
-          cat >> build-ios-only.sh << 'EOF'
-          xcodebuild -create-xcframework \
-            -framework "build-ios-device/llama.framework" \
-            -framework "build-ios-sim/llama.framework" \
-            -output build-apple/llama.xcframework
-          EOF
-          
-          chmod +x build-ios-only.sh
-          ./build-ios-only.sh
-          
+          # Running the native script exactly as it is. No more hacking.
+          ./build-xcframework.sh
           cp -R build-apple/llama.xcframework ${{ github.workspace }}/
 
       - name: Verify llama.xcframework

@@ -5,6 +5,8 @@ on:
   push:
     branches: [master]
 
+sudo
+
 jobs:
   build:
     runs-on: macos-latest
@@ -14,8 +16,18 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_16.2.app
+      - name: Select Xcode & Install iOS 18.2
+        run: |
+          sudo xcode-select -switch /Applications/Xcode_16.2.app
+          xcodebuild -downloadPlatform iOS
+          xcodebuild -showsdks | grep iphoneos
+      - name: Cache SPM
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/org.swift.swiftpm
+          key: spm-${{ hashFiles('**/Package.resolved') }}
+      - name: Resolve packages
+
 
       - name: Build llama.xcframework (CRITICAL)
         run: |

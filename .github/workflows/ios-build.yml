@@ -16,28 +16,49 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Get latest llama.cpp commit hash
-        id: llama-commit
+      - name: Get latest stable llama.cpp release tag
+        id: llama-version
         run: |
-          echo "sha=$(git ls-remote https://github.com/ggml-org/llama.cpp.git HEAD | awk '{ print $1 }')" >> $GITHUB_OUTPUT
+          TAG=$(curl -sL https://api.github.com/repos/ggml-org/llama.cpp/releases/latest | jq -r .tag_name)
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Cache llama.xcframework
         id: cache-llama
         uses: actions/cache@v4
         with:
           path: ${{ github.workspace }}/llama.xcframework
-          key: llama-xcframework-ios-${{ steps.llama-commit.outputs.sha }}
+          key: llama-xcframework-ios-${{ steps.llama-version.outputs.tag }}
 
       - name: Build llama.xcframework (Conditional)
         if: steps.cache-llama.outputs.cache-hit != 'true'
         run: |
           cd /tmp
-          git clone --depth 1 https://github.com/ggml-org/llama.cpp.git
+          git clone --depth 1 --branch ${{ steps.llama-version.outputs.tag }} https://github.com/ggml-org/llama.cpp.git
           cd llama.cpp
           
           # The native script has no skip flags.
           # We truncate it before it hits the macOS build.
           awk '/Building for macOS/{exit} {print}' build-xcframework.sh > build-ios-only.sh
+          
+          # Append custom XCFramework creation for iOS only.
+          cat >> build-ios-only.sh << 'EOF'
+          xcodebuild -create-xcframework \
+            -framework "build-ios-device/llama.framework" \
+            -framework "build-ios-sim/llama.framework" \
+            -output build-apple/llama.xcframework
+          EOF
+          
+          chmod +x build-ios-only.sh
+          ./build-ios-only.sh
+          
+          cp -R build-apple/llama.xcframework ${{ github.workspace }}/
+
+      - name: Verify llama.xcframework
+        run: ls -la ${{ github.workspace }}/llama.xcframework
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -switch /Applications/Xcode_16.2.app
           
           # Append custom XCFramework creation for iOS only.
           cat >> build-ios-only.sh << 'EOF'

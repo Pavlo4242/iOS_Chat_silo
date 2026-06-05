@@ -16,7 +16,6 @@ jobs:
         with:
           submodules: recursive
 
-   
       - name: Build llama.xcframework (CRITICAL)
         run: |
           cd /tmp
@@ -26,15 +25,17 @@ jobs:
           cp -R build-apple/llama.xcframework ${{ github.workspace }}/
           ls -la ${{ github.workspace }}/llama.xcframework
 
-
       - name: Select Xcode
         run: |
           sudo xcode-select -switch /Applications/Xcode_16.2.app
-         
+
+      - name: Clone local package dependency
+        run: |
+          mkdir -p Packages
+          git clone https://github.com/soniqo/speech-swift.git Packages/speech-swift
 
       - name: Verify local package exists
         run: ls -la Packages/speech-swift
-
 
       - name: Patch Xcode Project (Dependencies & Targets)
         run: |
@@ -93,7 +94,6 @@ jobs:
           
           project.save
           "
-
 
       - name: Cache SPM
         uses: actions/cache@v4

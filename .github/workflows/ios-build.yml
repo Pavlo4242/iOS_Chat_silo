@@ -17,14 +17,13 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_16.2.app
 
-
       - name: Apply Xcode Signing Fixes & Clean Up Custom Files
         working-directory: apps/mobile/ios
         run: |
           set -e
           echo "Installing xcodeproj gem..."
           gem install xcodeproj
-        
+          # Add your xcodeproj Ruby script here if needed
 
       - name: Build llama.xcframework (CRITICAL)
         run: |
@@ -35,35 +34,58 @@ jobs:
           cp -R build-apple/llama.xcframework ${{ github.workspace }}/
           ls -la ${{ github.workspace }}/llama.xcframework
 
-     
-    # MODIFICATION: Added export options for unsigned build to ensure consistency
-      - name: Setup Export Options
-        working-directory: apps/mobile/ios
-
-  
       - name: Build Archive
         working-directory: apps/mobile/ios
         run: |
-                xcodebuild clean -project Silo.xcodeproj \
-                  -scheme Silo \
-                  -quiet \
-                  -configuration Release \
-                  -sdk iphoneos \
-                  -destination 'generic/platform=iOS' \
-                  -archivePath $PWD/build/Silo.xcarchive \
-                  archive \
-                  CODE_SIGN_IDENTITY="" \
-                  DEVELOPMENT_TEAM="" \
-                  CODE_SIGNING_REQUIRED=NO \
-                  CODE_SIGNING_ALLOWED=NO
-       
-      
+          # Create build directory
+          mkdir -p $PWD/build
+          
+          xcodebuild clean -project Silo.xcodeproj \
+            -scheme Silo \
+            -quiet \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath $PWD/build/Silo.xcarchive \
+            archive \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
       - name: Create IPA
         run: |
-                APP_PATH=$(find $RUNNER_TEMP/Silo.xcarchive -name "*.app" -type d | head -1)
-                mkdir -p $RUNNER_TEMP/build/Payload
-                cp -R "$APP_PATH" $RUNNER_TEMP/build/Payload/
-                cd $RUNNER_TEMP/build
-                zip -r Silo-iPhone15.ipa Payload
-    
-     
+          # Use the correct archive path
+          ARCHIVE_PATH="apps/mobile/ios/build/Silo.xcarchive"
+          
+          # Find the .app in the archive
+          APP_PATH=$(find "$ARCHIVE_PATH" -name "*.app" -type d | head -1)
+          
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: Could not find .app in archive"
+            exit 1
+          fi
+          
+          echo "Found app at: $APP_PATH"
+          
+          # Create Payload directory
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          
+          # Create IPA
+          zip -r Silo-iPhone15.ipa Payload
+          
+          # Move IPA to workspace root for easy access
+          mv Silo-iPhone15.ipa ${{ github.workspace }}/
+          
+          # Clean up
+          rm -rf Payload
+          
+          echo "IPA created successfully at: ${{ github.workspace }}/Silo-iPhone15.ipa"
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Silo-iPhone15.ipa
+          path: ${{ github.workspace }}/Silo-iPhone15.ipa
+          retention-days: 30

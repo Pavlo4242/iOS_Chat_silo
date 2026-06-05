@@ -114,3 +114,34 @@ jobs:
           project.save
           puts '--> Xcode project patched successfully!'
           "
+
+      # Resolve package dependencies
+      - name: Resolve Swift Packages
+        run: xcodebuild -resolvePackageDependencies -project Silo.xcodeproj
+
+      # Build application without requiring a signing certificate
+      - name: Build Application
+        run: |
+          xcodebuild clean build \
+            -project Silo.xcodeproj \
+            -scheme Silo \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      # Package the built app into a payload directory and zip into an IPA
+      - name: Create IPA
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/Silo.app Payload/
+          zip -qr Silo.ipa Payload/
+
+      # Upload the output artifact to the GitHub run
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Silo-Release-IPA
+          path: Silo.ipa

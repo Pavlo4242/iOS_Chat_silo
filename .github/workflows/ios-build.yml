@@ -21,16 +21,35 @@ jobs:
           sudo xcode-select -switch /Applications/Xcode_16.2.app
           xcodebuild -version
           xcodebuild -showsdks
+          ls -la Silo/ || echo "Silo folder missing"
 
       - name: Resolve Packages
         run: |
           xcodebuild -resolvePackageDependencies \
             -project Silo.xcodeproj \
-            -scheme Silo || true
+            -scheme Silo \
+            -sdk iphoneos || true
 
-      - name: Archive (No Signing)
+      - name: Build (not just clean/archive)
         run: |
-          xcodebuild clean archive \
+          # First verify scheme works
+          xcodebuild -list -project Silo.xcodeproj
+          
+          # Build for generic iOS device
+          xcodebuild build \
+            -project Silo.xcodeproj \
+            -scheme Silo \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            | tee build.log
+
+      - name: Archive (Fixed Destination)
+        run: |
+          xcodebuild archive \
             -project Silo.xcodeproj \
             -scheme Silo \
             -sdk iphoneos \
@@ -39,15 +58,22 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="" \
             PROVISIONING_PROFILE_SPECIFIER="" \
+            SKIP_INSTALL=NO \
+            BUILD_LIBRARY_FOR_DISTRIBUTION=YES \
             | tee archive.log
-
-      - name: Check Archive Exists
-        run: |
-          ls -la $RUNNER_TEMP/Silo.xcarchive/Products/Applications/ || echo "Archive missing"
+          
+          # Check if archive was created
           if [ ! -d "$RUNNER_TEMP/Silo.xcarchive" ]; then
-            echo "❌ Archive creation failed"
+            echo "❌ Archive creation failed - trying alternative approach"
             exit 1
           fi
+
+      - name: Check Archive Contents
+        run: |
+          echo "Archive exists, checking contents:"
+          ls -la $RUNNER_TEMP/Silo.xcarchive/
+          ls -la $RUNNER_TEMP/Silo.xcarchive/Products/ || echo "No Products folder"
+          find $RUNNER_TEMP/Silo.xcarchive -name "*.app" -type d || echo "No .app found"
 
       - name: Export IPA (Unsigned)
         run: |
@@ -64,6 +90,8 @@ jobs:
               <false/>
               <key>destination</key>
               <string>generic/platform=iOS</string>
+              <key>teamID</key>
+              <string></string>
           </dict>
           </plist>
           EOF
@@ -75,32 +103,50 @@ jobs:
             -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
             -exportPath $RUNNER_TEMP/build \
             -allowProvisioningUpdates \
-            || echo "Export failed (expected without signing)"
+            CODE_SIGNING_ALLOWED=NO || echo "Export failed with code $?"
 
-      - name: Find and Rename IPA
+      - name: Create IPA Directly from .app (Fallback)
+        if: failure() || always()
         run: |
-          echo "Searching for IPA files..."
-          find $RUNNER_TEMP/build -name "*.ipa" -type f
+          # Find the .app bundle
+          APP_PATH=$(find $RUNNER_TEMP/Silo.xcarchive -name "*.app" -type d | head -1)
           
-          # If IPA exists, rename it
-          if [ -f "$RUNNER_TEMP/build/Silo.ipa" ]; then
-            mv "$RUNNER_TEMP/build/Silo.ipa" "$RUNNER_TEMP/build/Silo-iPhone15.ipa"
-          elif [ -f "$RUNNER_TEMP/build/*.ipa" ]; then
-            mv $RUNNER_TEMP/build/*.ipa "$RUNNER_TEMP/build/Silo-iPhone15.ipa" 2>/dev/null || true
+          if [ -n "$APP_PATH" ] && [ -d "$APP_PATH" ]; then
+            echo "Found .app at: $APP_PATH"
+            
+            # Create Payload folder and zip as IPA
+            mkdir -p $RUNNER_TEMP/build/Payload
+            cp -R "$APP_PATH" $RUNNER_TEMP/build/Payload/
+            cd $RUNNER_TEMP/build
+            zip -r Silo-iPhone15.ipa Payload/
+            echo "✅ Created IPA manually: Silo-iPhone15.ipa"
+            ls -la Silo-iPhone15.ipa
           else
-            echo "⚠️ No IPA created - building .app bundle instead"
-            # Archive should contain .app, we'll zip it as fallback
-            if [ -d "$RUNNER_TEMP/Silo.xcarchive/Products/Applications" ]; then
-              cd $RUNNER_TEMP/Silo.xcarchive/Products/Applications
-              zip -r $RUNNER_TEMP/build/Silo-iPhone15.app.zip *.app
-              echo "Created app bundle zip as fallback"
+            echo "❌ No .app bundle found to package"
+            # Try building a simulator .app as last resort
+            xcodebuild build \
+              -project Silo.xcodeproj \
+              -scheme Silo \
+              -sdk iphonesimulator \
+              -destination 'platform=iOS Simulator,name=iPhone 15' \
+              CODE_SIGNING_ALLOWED=NO \
+              | tee simulator_build.log
+            
+            # Package simulator .app
+            SIM_APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "*.app" -type d 2>/dev/null | grep Simulator | head -1)
+            if [ -n "$SIM_APP_PATH" ]; then
+              mkdir -p $RUNNER_TEMP/build/Payload
+              cp -R "$SIM_APP_PATH" $RUNNER_TEMP/build/Payload/
+              cd $RUNNER_TEMP/build
+              zip -r Silo-iPhone15-Simulator.ipa Payload/
+              echo "✅ Created simulator IPA as fallback"
             fi
           fi
           
           ls -la $RUNNER_TEMP/build/
 
       - name: Upload IPA Artifact
-        if: success() || failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Silo-iPhone15-Build
@@ -115,5 +161,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-logs
-          path: archive.log
+          path: |
+            archive.log
+            build.log
+            simulator_build.log
           retention-days: 3

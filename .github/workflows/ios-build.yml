@@ -26,57 +26,73 @@ jobs:
           cp -R build-apple/llama.xcframework ${{ github.workspace }}/
           ls -la ${{ github.workspace }}/llama.xcframework
 
-      - name: Install Dependencies
+      - name: Verify Xcode Project
         working-directory: apps/mobile/ios
         run: |
-          # Install any required gems
-          gem install xcodeproj if command -v gem > /dev/null
-          
-          # Create Signing.local.xcconfig if it doesn't exist (empty for CI)
-          if [ ! -f Config/Signing.local.xcconfig ]; then
-            echo "// Auto-generated for CI" > Config/Signing.local.xcconfig
-            echo "// No team ID set - unsigned build only" >> Config/Signing.local.xcconfig
-          fi
+          echo "Checking project structure..."
+          ls -la
+          echo "Available schemes:"
+          xcodebuild -list -project Silo.xcodeproj
 
-      - name: Build Unsigned Archive
+      - name: Build Archive (with verbose errors)
         working-directory: apps/mobile/ios
         run: |
-          # Build without signing (following project's empty DEVELOPMENT_TEAM approach)
-          xcodebuild clean archive \
+          # Create build directory
+          mkdir -p build
+          
+          # Build archive with full error output
+          xcodebuild archive \
             -project Silo.xcodeproj \
             -scheme Silo \
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
-            -archivePath $PWD/build/Silo.xcarchive \
+            -archivePath "$PWD/build/Silo.xcarchive" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            DEVELOPMENT_TEAM=""
-
-      - name: Create Unsigned IPA
-        run: |
-          ARCHIVE_PATH="apps/mobile/ios/build/Silo.xcarchive"
+            DEVELOPMENT_TEAM="" \
+            -verbose || exit 1
           
-          # Verify archive exists
-          if [ ! -d "$ARCHIVE_PATH" ]; then
-            echo "Error: Archive not found at $ARCHIVE_PATH"
+          # Verify archive was created
+          if [ -d "build/Silo.xcarchive" ]; then
+            echo "✅ Archive created successfully!"
+            echo "Archive contents:"
+            find build/Silo.xcarchive -type d -name "*.app" 2>/dev/null || echo "No .app found in archive"
+            ls -la build/Silo.xcarchive/
+          else
+            echo "❌ Archive creation failed - no archive found"
             exit 1
           fi
+
+      - name: Create IPA
+        working-directory: apps/mobile/ios
+        run: |
+          ARCHIVE_PATH="$PWD/build/Silo.xcarchive"
           
-          # Find the .app bundle
-          APP_PATH=$(find "$ARCHIVE_PATH/Products/Applications" -name "*.app" -type d | head -1)
+          # Try multiple possible app locations
+          APP_PATH=""
+          
+          # Check Products/Applications (standard location)
+          if [ -d "$ARCHIVE_PATH/Products/Applications" ]; then
+            APP_PATH=$(find "$ARCHIVE_PATH/Products/Applications" -name "*.app" -type d | head -1)
+          fi
+          
+          # Check root of archive
+          if [ -z "$APP_PATH" ] && [ -d "$ARCHIVE_PATH" ]; then
+            APP_PATH=$(find "$ARCHIVE_PATH" -name "*.app" -type d -maxdepth 2 | grep -v ".dSYM" | head -1)
+          fi
           
           if [ -z "$APP_PATH" ]; then
-            echo "Error: Could not find .app in archive"
-            echo "Contents of archive:"
-            find "$ARCHIVE_PATH" -type d -name "*.app" 2>/dev/null || echo "No .app found"
+            echo "❌ Could not find .app in archive"
+            echo "Full archive contents:"
+            find "$ARCHIVE_PATH" -type f -name "*.app" -o -name "*.plist" 2>/dev/null | head -20
             exit 1
           fi
           
-          echo "Found app at: $APP_PATH"
+          echo "✅ Found app at: $APP_PATH"
           
-          # Create Payload directory and package IPA
+          # Create IPA
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/
           zip -r Silo-iPhone15.ipa Payload
@@ -85,9 +101,7 @@ jobs:
           mv Silo-iPhone15.ipa ${{ github.workspace }}/
           rm -rf Payload
           
-          echo "IPA created at: ${{ github.workspace }}/Silo-iPhone15.ipa"
-          
-          # Show IPA info
+          echo "✅ IPA created at: ${{ github.workspace }}/Silo-iPhone15.ipa"
           ls -lh ${{ github.workspace }}/Silo-iPhone15.ipa
 
       - name: Upload IPA Artifact
@@ -96,12 +110,13 @@ jobs:
           name: Silo-iPhone15-unsigned.ipa
           path: ${{ github.workspace }}/Silo-iPhone15.ipa
           retention-days: 30
-          compression-level: 0
+          if-no-files-found: error
 
-      - name: Upload Archive (Optional - for debugging)
+      - name: Upload Archive (if exists)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Silo-xcarchive
           path: apps/mobile/ios/build/Silo.xcarchive
           retention-days: 7
+          if-no-files-found: wa

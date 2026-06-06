@@ -6,7 +6,7 @@
     <string>ad-hoc</string>  <!-- or ad-hoc for distribution -->
     <key>provisioningProfiles</key>
     <dict>
-        <key>com.phattymatti.silo</key>
+        <key>com.example.silo</key>
         <string>Angela Smith Development Profile</string>
     </dict>
     <key>teamID</key>

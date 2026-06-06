@@ -16,6 +16,12 @@ jobs:
         with:
           submodules: recursive
 
+          
+      - name: Patch speech-swift AudioIO.swift (Fix Bluetooth)
+        run: |
+          sed -i '' 's/\.allowBluetoothHFP/\.allowBluetooth/g' Dependencies/speech-swift/Sources/AudioCommon/AudioIO.swift
+
+
       - name: Get llama.cpp Latest Commit
         id: llama-commit
         run: |

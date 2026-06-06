@@ -135,13 +135,8 @@ jobs:
         if: steps.ios-cache.outputs.cache-hit != 'true'
         run: xcodebuild -downloadPlatform iOS
 
-    
-
-        
-
       - name: Build Xcode Project (Unsigned)
-              # Forcefully strip all signing requirements
-              run: |
+        run: |
                 set -o pipefail
                 xcodebuild build \
                   -project Silo.xcodeproj \

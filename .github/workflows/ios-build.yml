@@ -132,7 +132,7 @@ jobs:
             -scheme Silo \
             -configuration Release \
             -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
+            -destination "platform=iOS,id=00008150-0004056C0200401C"
             -derivedDataPath ./build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \

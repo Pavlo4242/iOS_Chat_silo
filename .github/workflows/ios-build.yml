@@ -149,7 +149,7 @@ jobs:
             -scheme Silo \
             -configuration Release \
             -sdk iphoneos \
-            -destination "generic/platform=iOS"
+            -destination "generic/platform=iOS" \
             -derivedDataPath ./build \
             CODE_SIGN_STYLE="Manual" \
             CODE_SIGNING_ALLOWED=NO \

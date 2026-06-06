@@ -139,25 +139,27 @@ jobs:
 
         
 
-      # Build application without requiring a signing certificate
       - name: Build Xcode Project (Unsigned)
-        id: build-xcode
-        run: |
-          set -o pipefail
-          xcodebuild build \
-            -project Silo.xcodeproj \
-            -scheme Silo \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination "generic/platform=iOS" \
-            -derivedDataPath ./build \
-            CODE_SIGN_STYLE="Manual" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            DEVELOPMENT_TEAM="" \ 
-            PROVISIONING_PROFILE_SPECIFIER="" \
-            IPHONEOS_DEPLOYMENT_TARGET=18.0 | xcbeautify
+              # Forcefully strip all signing requirements
+              run: |
+                set -o pipefail
+                xcodebuild build \
+                  -project Silo.xcodeproj \
+                  -scheme Silo \
+                  -configuration Release \
+                  -sdk iphoneos \
+                  -destination "generic/platform=iOS" \
+                  -derivedDataPath ./build \
+                  CODE_SIGN_STYLE="Manual" \
+                  CODE_SIGN_IDENTITY="" \
+                  CODE_SIGNING_REQUIRED=NO \
+                  CODE_SIGNING_ALLOWED=NO \
+                  DEVELOPMENT_TEAM="" \
+                  PROVISIONING_PROFILE_SPECIFIER="" | xcbeautify
+
+
+
+            
       # Package the built app into a payload directory and zip into an IPA
       - name: Create IPA
         run: |

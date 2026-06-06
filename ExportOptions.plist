@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>method</key>
-    <string>development</string>  <!-- or ad-hoc for distribution -->
+    <string>ad-hoc</string>  <!-- or ad-hoc for distribution -->
     <key>provisioningProfiles</key>
     <dict>
         <key>com.phattymatti.silo</key>

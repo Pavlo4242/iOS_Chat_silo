@@ -120,8 +120,26 @@ jobs:
         run: xcodebuild -resolvePackageDependencies -project Silo.xcodeproj
 
       - name: Install xcbeautify
-  # Install the formatter on the macOS runner
         run: brew install xcbeautify
+
+      - name: Cache iOS Platform
+        id: ios-cache
+        uses: actions/cache@v4
+        with:
+          # This is the default path where Xcode stores downloaded simulator runtimes
+          path: /Library/Developer/CoreSimulator/Profiles/Runtimes
+          key: ios-platform-xcode-16.2
+
+      - name: Download iOS Platform
+        # Only run the massive download if the cache wasn't found
+        if: steps.ios-cache.outputs.cache-hit != 'true'
+        run: xcodebuild -downloadPlatform iOS
+
+      # Add this step to download the missing iOS 18 platform files
+      - name: Download iOS Platform
+        run: xcodebuild -downloadPlatform iOS
+
+        
 
       # Build application without requiring a signing certificate
       - name: Build Xcode Project (Unsigned)

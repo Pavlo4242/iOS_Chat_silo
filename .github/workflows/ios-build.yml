@@ -145,6 +145,7 @@ jobs:
       - name: Build Xcode Project (Unsigned)
         id: build-xcode
         run: |
+          set -o pipefail
           xcodebuild build \
             -project Silo.xcodeproj \
             -scheme Silo \
@@ -155,7 +156,9 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            IPHONEOS_DEPLOYMENT_TARGET=18.0
+            DEVELOPMENT_TEAM="" \ 
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            IPHONEOS_DEPLOYMENT_TARGET=18.0 | xcbeautify
       # Package the built app into a payload directory and zip into an IPA
       - name: Create IPA
         run: |

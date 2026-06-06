@@ -9,7 +9,7 @@ on:
 
 jobs:
   build-ios:
-    runs-on: macos-latest # Uses Apple Silicon runner
+    runs-on: macos-15 # Uses Apple Silicon runner
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -66,8 +66,8 @@ jobs:
           target = project.targets.first
           
           # Fix deployment targets to 18.2
-          project.build_configurations.each { |c| c.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '18.2' }
-          target.build_configurations.each { |c| c.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '18.2' }
+          project.build_configurations.each { |c| c.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '18.0' }
+          target.build_configurations.each { |c| c.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '18.0' }
           
           # Add Remote Package
           pkg_remote = project.new(Xcodeproj::Project::Object::XCRemoteSwiftPackageReference)
@@ -137,7 +137,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            IPHONEOS_DEPLOYMENT_TARGET=18.2
+            IPHONEOS_DEPLOYMENT_TARGET=18.0
       # Package the built app into a payload directory and zip into an IPA
       - name: Create IPA
         run: |

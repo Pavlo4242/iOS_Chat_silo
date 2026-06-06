@@ -135,9 +135,7 @@ jobs:
         if: steps.ios-cache.outputs.cache-hit != 'true'
         run: xcodebuild -downloadPlatform iOS
 
-      # Add this step to download the missing iOS 18 platform files
-      - name: Download iOS Platform
-        run: xcodebuild -downloadPlatform iOS
+    
 
         
 
